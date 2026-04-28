@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KV Cognition — Real-Time GPU Inference Optimization</title>
+<style>
+  :root {
+    --electric: #00d4ff;
+    --electric-bright: #7df9ff;
+    --storm: #1a0a3a;
+    --deep: #060412;
+    --card-bg: rgba(10,8,30,0.72);
+    --card-border: rgba(0,212,255,0.18);
+    --text: #e8eaff;
+    --muted: #8892b0;
+    --accent: #bf5fff;
+    --green: #00ffb3;
+    --gold: #ffd166;
+    --danger: #ff4d6d;
+    --glow: 0 0 24px rgba(0,212,255,0.45);
+    --glow-strong: 0 0 48px rgba(0,212,255,0.7), 0 0 96px rgba(0,212,255,0.25);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--deep);
+    color: var(--text);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ─── STORM CANVAS ─────────────────────────────────────── */
+  #storm-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ─── NAV ───────────────────────────────────────────────── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 48px;
+    height: 72px;
+    background: rgba(6,4,18,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0,212,255,0.1);
+  }
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--electric);
+    text-shadow: var(--glow);
+  }
+  .nav-logo svg { width:34px; height:34px; }
+  .nav-links {
+    display: flex;
+    gap: 36px;
+    list-style: none;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--electric); }
+  .nav-cta {
+    background: linear-gradient(135deg, #00d4ff, #7b2fff);
+    color: #fff;
+    border: none;
+    padding: 10px 26px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: var(--glow);
+  }
+  .nav-cta:hover { transform: translateY(-1px); box-shadow: var(--glow-strong); }
+
+  /* ─── PAGE SECTIONS ─────────────────────────────────────── */
+  section {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* ─── HERO ──────────────────────────────────────────────── */
+  #hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 100px 24px 60px;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.3);
+    border-radius: 100px;
+    padding: 6px 18px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--electric);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    animation: fadeUp 0.8s ease both;
+  }
+  .hero-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  .hero-title {
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 900;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    animation: fadeUp 0.9s 0.1s ease both;
+    margin-bottom: 8px;
+  }
+  .hero-title span.grad {
+    background: linear-gradient(135deg, #00d4ff 0%, #bf5fff 50%, #ff6b35 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-subtitle {
+    font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+    color: var(--muted);
+    margin-top: 18px;
+    max-width: 720px;
+    animation: fadeUp 1s 0.2s ease both;
+    line-height: 1.6;
+  }
+  .hero-cta-group {
+    display: flex;
+    gap: 16px;
+    margin-top: 48px;
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: fadeUp 1s 0.35s ease both;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #00d4ff, #7b2fff);
+    color: #fff;
+    border: none;
+    padding: 16px 40px;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 1.05rem;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 32px rgba(0,212,255,0.35);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--glow-strong); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--electric);
+    border: 1.5px solid var(--electric);
+    padding: 15px 38px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-secondary:hover { background: rgba(0,212,255,0.08); transform: translateY(-2px); }
+
+  /* Hero metrics strip */
+  .hero-metrics {
+    display: flex;
+    gap: 0;
+    margin-top: 72px;
+    background: rgba(10,8,30,0.75);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 16px;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    animation: fadeUp 1s 0.5s ease both;
+    flex-wrap: wrap;
+  }
+  .hero-metric {
+    flex: 1;
+    min-width: 160px;
+    padding: 28px 32px;
+    text-align: center;
+    border-right: 1px solid rgba(0,212,255,0.1);
+  }
+  .hero-metric:last-child { border-right: none; }
+  .hero-metric .val {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: var(--electric);
+    text-shadow: var(--glow);
+    display: block;
+  }
+  .hero-metric .lbl {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+
+  /* ─── LIVE DASHBOARD ────────────────────────────────────── */
+  #dashboard {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--electric);
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+  .section-desc {
+    color: var(--muted);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    max-width: 600px;
+    margin-bottom: 60px;
+  }
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .dash-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px;
+    backdrop-filter: blur(20px);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .dash-card:hover {
+    border-color: rgba(0,212,255,0.45);
+    box-shadow: var(--glow);
+  }
+  .dash-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .dash-card-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .dash-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    color: var(--green);
+    font-weight: 600;
+  }
+  .dash-status .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  .big-number {
+    font-size: 2.8rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .big-number span { color: var(--electric); }
+  .trend {
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .trend.up { color: var(--green); }
+  .trend.down { color: var(--danger); }
+
+  /* sparkline placeholder */
+  .sparkline {
+    width: 100%;
+    height: 52px;
+    margin-top: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .sparkline canvas { width: 100% !important; height: 100% !important; }
+
+  /* bar chart */
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 60px;
+    margin-top: 16px;
+  }
+  .bar {
+    flex: 1;
+    border-radius: 4px 4px 0 0;
+    background: linear-gradient(to top, #00d4ff, #7b2fff);
+    transition: height 0.8s cubic-bezier(0.4,0,0.2,1);
+    min-height: 4px;
+  }
+
+  /* ─── PROBLEM ───────────────────────────────────────────── */
+  #problem {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 16px;
+  }
+  @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+  .cost-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 36px;
+    backdrop-filter: blur(20px);
+  }
+  .cost-card.bad { border-color: rgba(255,77,109,0.25); }
+  .cost-card.good { border-color: rgba(0,255,179,0.25); }
+  .cost-label {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 100px;
+    margin-bottom: 16px;
+  }
+  .cost-label.bad { background: rgba(255,77,109,0.15); color: var(--danger); }
+  .cost-label.good { background: rgba(0,255,179,0.1); color: var(--green); }
+  .cost-card h3 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+  .cost-card p { color: var(--muted); line-height: 1.7; font-size: 0.95rem; }
+  .cost-bullets { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .cost-bullet {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .cost-bullet .icon { flex-shrink: 0; margin-top: 2px; }
+
+  .insight-box {
+    margin-top: 48px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.08) 0%, rgba(123,47,255,0.08) 100%);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 16px;
+    padding: 32px 36px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .insight-icon { font-size: 2rem; flex-shrink: 0; }
+  .insight-box h4 { font-size: 1.1rem; font-weight: 800; margin-bottom: 8px; color: var(--electric); }
+  .insight-box p { color: var(--muted); font-size: 0.95rem; line-height: 1.7; }
+
+  /* ─── HOW IT WORKS ──────────────────────────────────────── */
+  #how {
+    padding: 100px 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 12px;
+    position: relative;
+  }
+  .steps::before {
+    content: '';
+    position: absolute;
+    left: 26px;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--electric), var(--accent), transparent);
+  }
+  .step {
+    display: flex;
+    gap: 28px;
+    padding: 32px 0;
+    position: relative;
+  }
+  .step-num {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00d4ff, #7b2fff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: var(--glow);
+    position: relative;
+    z-index: 2;
+  }
+  .step-body { flex: 1; }
+  .step-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--electric);
+    margin-bottom: 6px;
+  }
+  .step-body h3 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+  .step-body p { color: var(--muted); font-size: 0.95rem; line-height: 1.7; }
+  .step-detail {
+    margin-top: 14px;
+    background: rgba(0,212,255,0.05);
+    border-left: 3px solid var(--electric);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    color: var(--electric-bright);
+  }
+
+  /* ─── FEATURES / MOAT ───────────────────────────────────── */
+  #features {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-top: 16px;
+  }
+  .feature-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 36px 30px;
+    backdrop-filter: blur(20px);
+    transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--electric), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .feature-card:hover::before { opacity: 1; }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(0,212,255,0.35);
+    box-shadow: var(--glow);
+  }
+  .feature-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(123,47,255,0.15));
+    border: 1px solid rgba(0,212,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 20px;
+  }
+  .feature-card h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 10px; }
+  .feature-card p { color: var(--muted); font-size: 0.9rem; line-height: 1.7; }
+  .feature-tag {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 100px;
+    background: rgba(0,212,255,0.1);
+    color: var(--electric);
+  }
+
+  /* ─── ARBITRAGE / MODEL SELECTION ──────────────────────── */
+  #arbitrage {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .arbitrage-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 32px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--card-border);
+  }
+  .arbitrage-table th {
+    background: rgba(0,212,255,0.08);
+    padding: 16px 20px;
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--electric);
+    border-bottom: 1px solid rgba(0,212,255,0.12);
+  }
+  .arbitrage-table td {
+    padding: 16px 20px;
+    font-size: 0.9rem;
+    border-bottom: 1px solid rgba(0,212,255,0.06);
+    color: var(--text);
+  }
+  .arbitrage-table tr:last-child td { border-bottom: none; }
+  .arbitrage-table tr.winner td { background: rgba(0,255,179,0.04); }
+  .badge-win {
+    display: inline-block;
+    background: rgba(0,255,179,0.12);
+    color: var(--green);
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .badge-loss {
+    display: inline-block;
+    background: rgba(255,77,109,0.1);
+    color: var(--danger);
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  /* ─── MEMORY ROUTING ────────────────────────────────────── */
+  #routing {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .routing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin-top: 12px;
+  }
+  .routing-step {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px;
+    backdrop-filter: blur(20px);
+    position: relative;
+  }
+  .routing-step-num {
+    position: absolute;
+    top: -14px;
+    left: 24px;
+    background: linear-gradient(135deg, #00d4ff, #7b2fff);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    padding: 4px 12px;
+    border-radius: 100px;
+  }
+  .routing-step h4 { font-size: 1rem; font-weight: 800; margin: 8px 0 10px; }
+  .routing-step p { color: var(--muted); font-size: 0.88rem; line-height: 1.65; }
+  .routing-step .stat {
+    margin-top: 14px;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--green);
+  }
+  .routing-step .stat-lbl { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ─── PRICING ───────────────────────────────────────────── */
+  #pricing {
+    padding: 100px 40px;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .pricing-box {
+    background: linear-gradient(135deg, rgba(0,212,255,0.07) 0%, rgba(123,47,255,0.07) 100%);
+    border: 1px solid rgba(0,212,255,0.22);
+    border-radius: 28px;
+    padding: 64px;
+    backdrop-filter: blur(20px);
+    margin-top: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .pricing-box::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 50% 50%, rgba(0,212,255,0.04) 0%, transparent 60%);
+    animation: rotateSlow 20s linear infinite;
+  }
+  .pricing-num {
+    font-size: clamp(5rem, 12vw, 9rem);
+    font-weight: 900;
+    background: linear-gradient(135deg, #00d4ff, #7b2fff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    position: relative;
+  }
+  .pricing-desc {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-top: 8px;
+    position: relative;
+  }
+  .pricing-subtext {
+    color: var(--muted);
+    margin-top: 20px;
+    font-size: 1rem;
+    line-height: 1.75;
+    max-width: 540px;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+  }
+  .pricing-chips {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 40px;
+    position: relative;
+  }
+  .pricing-chip {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 100px;
+    padding: 10px 22px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pricing-chip .ck { color: var(--green); }
+
+  /* ─── MULTI-CLOUD ───────────────────────────────────────── */
+  #clouds {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .cloud-arch {
+    margin-top: 40px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    padding: 48px;
+    backdrop-filter: blur(20px);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 32px;
+    align-items: center;
+  }
+  @media (max-width:800px) {
+    .cloud-arch { grid-template-columns: 1fr; }
+    .cloud-center { transform: rotate(90deg); }
+  }
+  .cloud-providers {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .cloud-provider {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .cloud-provider-name { font-weight: 700; font-size: 0.9rem; }
+  .cloud-provider-stat { font-size: 0.78rem; color: var(--muted); }
+  .cloud-provider-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  .cloud-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .cloud-proxy-box {
+    background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(123,47,255,0.15));
+    border: 2px solid rgba(0,212,255,0.4);
+    border-radius: 16px;
+    padding: 20px 28px;
+    text-align: center;
+    box-shadow: var(--glow);
+  }
+  .cloud-proxy-box .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--electric); }
+  .cloud-proxy-box .name { font-size: 1.1rem; font-weight: 900; margin-top: 4px; }
+  .arrow-lines {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--electric);
+    font-size: 1.4rem;
+    opacity: 0.6;
+  }
+
+  /* ─── OBSERVABILITY ─────────────────────────────────────── */
+  #observability {
+    padding: 100px 40px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  .obs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-top: 16px;
+  }
+  @media(max-width:700px){ .obs-grid { grid-template-columns: 1fr; } }
+  .obs-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 32px;
+    backdrop-filter: blur(20px);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .obs-card:hover {
+    border-color: rgba(0,212,255,0.4);
+    box-shadow: var(--glow);
+  }
+  .obs-card.span2 { grid-column: 1 / -1; }
+  .obs-card h4 { font-size: 1rem; font-weight: 800; margin-bottom: 8px; }
+  .obs-card p { color: var(--muted); font-size: 0.88rem; line-height: 1.65; }
+  .metric-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .metric-pill {
+    padding: 5px 14px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .metric-pill.has { background: rgba(0,255,179,0.1); color: var(--green); border: 1px solid rgba(0,255,179,0.2); }
+  .metric-pill.missing { background: rgba(255,77,109,0.1); color: var(--danger); border: 1px solid rgba(255,77,109,0.2); }
+  .metric-pill.new { background: rgba(0,212,255,0.1); color: var(--electric); border: 1px solid rgba(0,212,255,0.2); }
+
+  /* ─── CTA / FOOTER ──────────────────────────────────────── */
+  #cta {
+    padding: 120px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  #cta::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cta-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--electric);
+    margin-bottom: 16px;
+  }
+  #cta h2 {
+    font-size: clamp(2.2rem, 5vw, 4rem);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #cta p {
+    color: var(--muted);
+    font-size: 1.05rem;
+    max-width: 520px;
+    margin: 0 auto 48px;
+    line-height: 1.7;
+  }
+
+  footer {
+    position: relative;
+    z-index: 10;
+    border-top: 1px solid rgba(0,212,255,0.08);
+    padding: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: gap;
+    gap: 16px;
+  }
+  .footer-logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--electric);
+    opacity: 0.7;
+  }
+  .footer-copy { color: var(--muted); font-size: 0.8rem; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { color: var(--muted); text-decoration: none; font-size: 0.8rem; transition: color 0.2s; }
+  .footer-links a:hover { color: var(--electric); }
+
+  /* ─── ANIMATIONS ────────────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes rotateSlow {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+
+  /* Scroll-reveal */
+  .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* Code snippet */
+  .code-block {
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 12px;
+    padding: 24px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+    line-height: 1.8;
+    color: #cdd6f4;
+    margin-top: 32px;
+    overflow-x: auto;
+    position: relative;
+  }
+  .code-block .kw { color: #89b4fa; }
+  .code-block .str { color: #a6e3a1; }
+  .code-block .cm { color: #6c7086; }
+  .code-block .fn { color: #cba6f7; }
+  .code-block .val { color: #fab387; }
+  .code-top-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .code-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+
+  /* Divider */
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,212,255,0.15), transparent);
+    margin: 0 auto;
+  }
+
+  /* Jevons Paradox callout */
+  .jevons-box {
+    background: linear-gradient(135deg, rgba(255,209,102,0.07) 0%, rgba(255,107,53,0.07) 100%);
+    border: 1px solid rgba(255,209,102,0.2);
+    border-radius: 20px;
+    padding: 40px;
+    margin-top: 48px;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    backdrop-filter: blur(12px);
+  }
+  .jevons-icon { font-size: 2.5rem; flex-shrink: 0; }
+  .jevons-box h3 { font-size: 1.15rem; font-weight: 800; color: var(--gold); margin-bottom: 10px; }
+  .jevons-box p { color: var(--muted); font-size: 0.95rem; line-height: 1.75; }
+
+  /* Responsive tweaks */
+  @media (max-width: 600px) {
+    nav { padding: 0 20px; }
+    .nav-links { display: none; }
+    #dashboard, #problem, #how, #features, #arbitrage, #routing, #pricing, #clouds, #observability, #cta { padding: 60px 20px; }
+    .pricing-box { padding: 40px 24px; }
+    .cloud-arch { padding: 28px; }
+    footer { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── STORM CANVAS ──────────────────────────────────────── -->
+<canvas id="storm-canvas"></canvas>
+
+<!-- ─── NAV ──────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-logo">
+    <svg viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="34" height="34" rx="8" fill="url(#lg1)"/>
+      <path d="M20 6L10 19h8l-4 9 14-13h-9l1-9z" fill="#fff"/>
+      <defs>
+        <linearGradient id="lg1" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#00d4ff"/>
+          <stop offset="1" stop-color="#7b2fff"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    KV Cognition
+  </div>
+  <ul class="nav-links">
+    <li><a href="#problem">The Problem</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#observability">Observability</a></li>
+  </ul>
+  <button class="nav-cta" onclick="document.getElementById('cta').scrollIntoView({behavior:'smooth'})">Get Early Access</button>
+</nav>
+
+<!-- ─── HERO ──────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    Real-Time GPU Inference Optimization
+  </div>
+  <h1 class="hero-title">
+    <span class="grad">KV Cognition</span>
+  </h1>
+  <h1 class="hero-title" style="font-size:clamp(1.6rem,4vw,3.2rem); color:var(--muted); font-weight:700; margin-top:8px; letter-spacing:-0.01em;">
+    The Unified Control Plane for AI Inference
+  </h1>
+  <p class="hero-subtitle">
+    We sit between your application and your GPU clusters—optimizing every token,
+    every batch, every millisecond. You pay only from the savings we generate.
+  </p>
+  <div class="hero-cta-group">
+    <button class="btn-primary" onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">See How It Works</button>
+    <button class="btn-secondary" onclick="document.getElementById('dashboard').scrollIntoView({behavior:'smooth'})">Live Dashboard</button>
+  </div>
+  <div class="hero-metrics">
+    <div class="hero-metric">
+      <span class="val" id="m-savings">$0</span>
+      <span class="lbl">Savings Generated</span>
+    </div>
+    <div class="hero-metric">
+      <span class="val" id="m-tokens">0B</span>
+      <span class="lbl">Tokens Optimized</span>
+    </div>
+    <div class="hero-metric">
+      <span class="val" id="m-latency">0ms</span>
+      <span class="lbl">Avg. TTFT Reduction</span>
+    </div>
+    <div class="hero-metric">
+      <span class="val" id="m-util">0%</span>
+      <span class="lbl">GPU Utilization Boost</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── LIVE DASHBOARD ────────────────────────────────────── -->
+<section id="dashboard">
+  <div class="section-label">Real-Time Observability</div>
+  <h2 class="section-title">The Dashboard That Didn't Exist Before</h2>
+  <p class="section-desc">
+    Standard DevOps tools track utilization. We track <strong>economics</strong>—
+    exposing the cost per token, per request, per routing decision in real time.
+  </p>
+  <div class="dashboard-grid">
+    <div class="dash-card reveal">
+      <div class="dash-card-header">
+        <span class="dash-card-title">GPU Cost / Token</span>
+        <span class="dash-status"><span class="dot"></span>LIVE</span>
+      </div>
+      <div class="big-number"><span>$</span><span id="d-cpt">0.000042</span></div>
+      <div class="trend up" id="d-cpt-trend">▼ 23% vs baseline</div>
+      <div class="sparkline"><canvas id="spark1"></canvas></div>
+    </div>
+    <div class="dash-card reveal">
+      <div class="dash-card-header">
+        <span class="dash-card-title">Batch Density</span>
+        <span class="dash-status"><span class="dot"></span>LIVE</span>
+      </div>
+      <div class="big-number"><span id="d-batch">87</span><span style="font-size:1.4rem;color:var(--muted)">%</span></div>
+      <div class="trend up">▲ Optimal fill rate</div>
+      <div class="bar-chart" id="batch-bars"></div>
+    </div>
+    <div class="dash-card reveal">
+      <div class="dash-card-header">
+        <span class="dash-card-title">KV-Cache Hit Rate</span>
+        <span class="dash-status"><span class="dot"></span>LIVE</span>
+      </div>
+      <div class="big-number"><span id="d-cache">91</span><span style="font-size:1.4rem;color:var(--muted)">%</span></div>
+      <div class="trend up">▲ Memory-aware routing active</div>
+      <div class="sparkline"><canvas id="spark2"></canvas></div>
+    </div>
+    <div class="dash-card reveal">
+      <div class="dash-card-header">
+        <span class="dash-card-title">Time to First Token</span>
+        <span class="dash-status"><span class="dot"></span>LIVE</span>
+      </div>
+      <div class="big-number"><span id="d-ttft">38</span><span style="font-size:1.4rem;color:var(--muted)">ms</span></div>
+      <div class="trend up">▼ 41% from cold start</div>
+      <div class="bar-chart" id="ttft-bars"></div>
+    </div>
+    <div class="dash-card reveal">
+      <div class="dash-card-header">
+        <span class="dash-card-title">Routing Decisions / sec</span>
+        <span class="dash-status"><span class="dot"></span>LIVE</span>
+      </div>
+      <div class="big-number"><span id="d-rps">12,847</span></div>
+      <div class="trend up">Across 3 clouds · 14 clusters</div>
+      <div class="sparkline"><canvas id="spark3"></canvas></div>
+    </div>
+    <div class="dash-card reveal">
+      <div class="dash-card-header">
+        <span class="dash-card-title">Effective Cost Savings</span>
+        <span class="dash-status"><span class="dot"></span>LIVE</span>
+      </div>
+      <div class="big-number" style="color:var(--green);"><span>$</span><span id="d-saved">1,284</span></div>
+      <div class="trend up">Today · vs unoptimized spend</div>
+      <div class="bar-chart" id="savings-bars"></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── PROBLEM ───────────────────────────────────────────── -->
+<section id="problem">
+  <div class="section-label">The Core Insight</div>
+  <h2 class="section-title">Two Costs. One <span style="color:var(--electric)">Matters.</span></h2>
+  <p class="section-desc">
+    Most systems optimize model cost. The real waste lives in GPU economics.
+    Routing based on the wrong signal costs you millions.
+  </p>
+  <div class="two-col reveal">
+    <div class="cost-card bad">
+      <span class="cost-label bad">❌ The Wrong Signal</span>
+      <h3>Model Cost / Token</h3>
+      <p>A static or averaged estimate based on model size or provider pricing. It ignores where and how the model runs—no awareness of utilization, scheduling inefficiencies, or live system conditions.</p>
+      <div class="cost-bullets">
+        <div class="cost-bullet"><span class="icon">▸</span>Fixed price assumption (e.g., "X per 1K tokens")</div>
+        <div class="cost-bullet"><span class="icon">▸</span>No awareness of GPU utilization or batching</div>
+        <div class="cost-bullet"><span class="icon">▸</span>Ignores KV-cache state and queue depth</div>
+        <div class="cost-bullet"><span class="icon">▸</span>Leads to systematically wrong routing decisions</div>
+      </div>
+    </div>
+    <div class="cost-card good">
+      <span class="cost-label good">✅ The Real Signal</span>
+      <h3>GPU Cost / Token</h3>
+      <p>How much you actually pay to generate a token on a specific GPU, given its real-time utilization, throughput, and idle time. Fluctuates every millisecond.</p>
+      <div class="cost-bullets">
+        <div class="cost-bullet"><span class="icon">▸</span>Live signal—changes with batching efficiency</div>
+        <div class="cost-bullet"><span class="icon">▸</span>Reflects queue depth & KV-cache hit rate</div>
+        <div class="cost-bullet"><span class="icon">▸</span>Same GPU can have 10× cost variance</div>
+        <div class="cost-bullet"><span class="icon">▸</span>The only signal that leads to optimal decisions</div>
+      </div>
+    </div>
+  </div>
+  <div class="insight-box reveal">
+    <div class="insight-icon">⚡</div>
+    <div>
+      <h4>The Counterintuitive Truth</h4>
+      <p>A <strong>larger model</strong> running on a well-utilized GPU with a full batch can be <strong>cheaper per token</strong> than a smaller model sitting on an underfilled, idle GPU. Most routing systems will choose the "cheap" small model—and lose money every single time.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── HOW IT WORKS ──────────────────────────────────────── -->
+<section id="how">
+  <div class="section-label">Developer Workflow</div>
+  <h2 class="section-title">Drop-In Integration. <span style="color:var(--electric)">Zero Friction.</span></h2>
+  <p class="section-desc">One line of code changes everything. Your application stays unchanged—KV Cognition does the heavy lifting in the background.</p>
+
+  <div class="code-block reveal">
+    <div class="code-top-bar">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:8px;font-size:0.72rem;color:var(--muted)">your_app.py</span>
+    </div>
+    <span class="cm"># Before: Direct call to OpenAI / vLLM</span><br>
+    <span class="kw">client</span> = OpenAI(base_url=<span class="str">"https://api.openai.com/v1"</span>)<br><br>
+    <span class="cm"># After: Route through KV Cognition (one-line change)</span><br>
+    <span class="kw">client</span> = OpenAI(base_url=<span class="str">"https://proxy.kvcognition.ai/v1"</span>)<br><br>
+    <span class="cm"># KV Cognition now handles:</span><br>
+    <span class="cm">#   ✅ Prompt fingerprinting &amp; KV-cache affinity routing</span><br>
+    <span class="cm">#   ✅ Real-time cost/latency arbitrage across clusters</span><br>
+    <span class="cm">#   ✅ Batch compaction for maximum GPU utilization</span><br>
+    <span class="cm">#   ✅ Full observability dashboard (cost per token per request)</span>
+  </div>
+
+  <div class="steps reveal" style="margin-top:56px;">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-body">
+        <div class="step-tag">Integration</div>
+        <h3>Point Your Base URL at KV Cognition</h3>
+        <p>Change one line in your LangChain, OpenAI SDK, or vLLM client. Our proxy is fully API-compatible—no code refactoring required. Works with every major LLM framework out of the box.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-body">
+        <div class="step-tag">Fingerprinting</div>
+        <h3>Prompt Fingerprinting &amp; KV-Cache Lookup</h3>
+        <p>Every request hitting the proxy gets its prefix hashed (first ~1,000 tokens). We check our Global Registry: "Which GPU in which cluster currently holds the warm KV-cache for this conversation?"</p>
+        <div class="step-detail">hash = sha256(prompt[:1000_tokens]) → "8A22F..."<br>registry.lookup("8A22F...") → cluster_b, gpu_07<br>→ pin request to gpu_07 (KV-cache is warm)</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-body">
+        <div class="step-tag">Arbitrage</div>
+        <h3>Real-Time Cost × Latency Decision</h3>
+        <p>For each candidate (model × GPU × cluster), we compute the <em>effective cost</em>: GPU cost/token (live) + latency penalty (based on your SLA tier). We pick the globally optimal option—not just the "cheapest model."</p>
+        <div class="step-detail">effective_cost = gpu_cost_per_token + latency_penalty(sla_tier)<br>best = argmin(effective_cost, candidates)<br>→ route to best.cluster / best.gpu</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-body">
+        <div class="step-tag">Batch Compaction</div>
+        <h3>5ms Hold Window for Density Packing</h3>
+        <p>If no warm KV-cache exists, the proxy holds the request for ~5ms to group it with other semantically similar requests. This creates high-density batches that push GPU utilization toward theoretical maximum.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">05</div>
+      <div class="step-body">
+        <div class="step-tag">Observability</div>
+        <h3>Real-Time Economic Dashboard</h3>
+        <p>After execution, every request is logged with its actual GPU cost, latency, cache hit status, and routing decision. You finally have the metric that's been missing from every DevOps stack: <strong>cost per token per request</strong>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── ARBITRAGE TABLE ──────────────────────────────────── -->
+<section id="arbitrage">
+  <div class="section-label">Routing Intelligence</div>
+  <h2 class="section-title">Optimal is <span style="color:var(--green)">Counterintuitive</span></h2>
+  <p class="section-desc">Our engine makes decisions that look wrong on the surface—but are mathematically optimal. See the live arbitrage in action:</p>
+
+  <table class="arbitrage-table reveal">
+    <thead>
+      <tr>
+        <th>Candidate</th>
+        <th>Model Size</th>
+        <th>GPU Util.</th>
+        <th>Batch Fill</th>
+        <th>GPU Cost/Token</th>
+        <th>Latency</th>
+        <th>Effective Cost</th>
+        <th>Decision</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="winner">
+        <td><strong>AWS Spot · H100 · Cluster B</strong></td>
+        <td>70B</td>
+        <td style="color:var(--green)">94%</td>
+        <td style="color:var(--green)">88%</td>
+        <td style="color:var(--green)">$0.000038</td>
+        <td>42ms</td>
+        <td style="color:var(--green)"><strong>$0.000045</strong></td>
+        <td><span class="badge-win">✓ SELECTED</span></td>
+      </tr>
+      <tr>
+        <td>GCP Reserved · A100 · Cluster A</td>
+        <td>7B</td>
+        <td style="color:var(--gold)">41%</td>
+        <td style="color:var(--danger)">23%</td>
+        <td style="color:var(--danger)">$0.000091</td>
+        <td>28ms</td>
+        <td style="color:var(--danger)">$0.000098</td>
+        <td><span class="badge-loss">✗ SKIPPED</span></td>
+      </tr>
+      <tr>
+        <td>Azure VPC · H100 · Cluster C</td>
+        <td>13B</td>
+        <td style="color:var(--gold)">67%</td>
+        <td style="color:var(--gold)">55%</td>
+        <td>$0.000061</td>
+        <td>35ms</td>
+        <td>$0.000068</td>
+        <td><span class="badge-loss">✗ SKIPPED</span></td>
+      </tr>
+      <tr>
+        <td>On-Prem VPC · H100 · Corp Cluster</td>
+        <td>13B</td>
+        <td style="color:var(--danger)">18%</td>
+        <td style="color:var(--danger)">12%</td>
+        <td style="color:var(--danger)">$0.000142</td>
+        <td>61ms</td>
+        <td style="color:var(--danger)">$0.000158</td>
+        <td><span class="badge-loss">✗ SKIPPED</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="insight-box reveal" style="margin-top:32px;">
+    <div class="insight-icon">🎯</div>
+    <div>
+      <h4>Why the 70B Model Won</h4>
+      <p>The 70B model on Cluster B had a warm KV-cache for this conversation prefix (hit on hash #8A22F) and was running at 94% batch density. Even though the 7B model on Cluster A had lower raw latency, its 23% batch density meant a 2.4× higher effective GPU cost per token. We picked the larger model—and it was <strong>51% cheaper</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── FEATURES / MOAT ──────────────────────────────────── -->
+<section id="features">
+  <div class="section-label">Why We Win</div>
+  <h2 class="section-title">The <span style="color:var(--accent)">Structural Moat</span></h2>
+  <p class="section-desc">Our advantages compound over time—the more data we process, the smarter the routing, the deeper the savings.</p>
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon">🧲</div>
+      <h3>Aligned Incentives</h3>
+      <p>We take a percentage of savings—never a seat license, never a flat fee. If we don't save you money, you owe us nothing. Cloud providers monetize <em>consumption</em>. We monetize <em>waste</em>.</p>
+      <span class="feature-tag">Zero-Risk Model</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">🌐</div>
+      <h3>Cross-Cloud Control Plane</h3>
+      <p>The Switzerland of inference. One proxy that routes across AWS, GCP, Azure, and private VPC clusters simultaneously. An enterprise buys one optimization layer—not three.</p>
+      <span class="feature-tag">Multi-Cloud Native</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">🧠</div>
+      <h3>Memory-Aware Routing</h3>
+      <p>We track where every KV-cache lives. When a request arrives, we pin it to the GPU that already holds its context—skipping full prompt re-computation and cutting TTFT by up to 40%.</p>
+      <span class="feature-tag">KV-Cache Affinity</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">⚡</div>
+      <h3>Batch Compaction Engine</h3>
+      <p>A 5ms hold window groups semantically similar requests into high-density batches. This pushes GPU utilization to theoretical maximums—turning idle silicon into revenue.</p>
+      <span class="feature-tag">Dynamic Batching</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">🔒</div>
+      <h3>Fixed Hardware, 10× Throughput</h3>
+      <p>Enterprise Fortune 500s are moving to on-prem H100 clusters. When demand grows 10× and hardware budgets are locked, we deliver the throughput story: get more from the silicon you own.</p>
+      <span class="feature-tag">On-Prem Ready</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon">📊</div>
+      <h3>Economic Observability</h3>
+      <p>The first platform to expose true cost-per-token-per-request as a live metric. Not utilization %. Not raw latency. Actual economic data—the signal that drives real decisions.</p>
+      <span class="feature-tag">New Metric Category</span>
+    </div>
+  </div>
+
+  <div class="jevons-box reveal">
+    <div class="jevons-icon">📈</div>
+    <div>
+      <h3>Jevons Paradox: Our Long-Term Tailwind</h3>
+      <p>As the cost of tokens decreases, total consumption increases so dramatically that aggregate spend goes <em>up</em>—not down. Every price drop is a volume explosion. We don't just survive cheaper tokens—we thrive because volume growth creates more waste to optimize. The bigger the market, the bigger our opportunity.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── MEMORY-AWARE ROUTING ─────────────────────────────── -->
+<section id="routing">
+  <div class="section-label">Core Technology</div>
+  <h2 class="section-title">Memory-Aware <span style="color:var(--electric)">Routing</span></h2>
+  <p class="section-desc">Traditional load balancers are blind to KV-cache state. We built a Global Mapping Table that knows where every conversation's memory lives—and routes accordingly.</p>
+  <div class="routing-grid">
+    <div class="routing-step reveal">
+      <div class="routing-step-num">01 · FINGERPRINT</div>
+      <h4>Prompt Hashing</h4>
+      <p>The proxy takes the prompt prefix and generates a deterministic hash of the first ~1,000 tokens—unique to that conversation's context window.</p>
+      <div class="stat">SHA-256</div>
+      <div class="stat-lbl">Deterministic · Collision-free</div>
+    </div>
+    <div class="routing-step reveal">
+      <div class="routing-step-num">02 · LOOKUP</div>
+      <h4>State Registry Check</h4>
+      <p>Query the Global Registry: "Which GPU in which cluster currently holds the warm KV-cache for hash #8A22F?"</p>
+      <div class="stat">&lt;1ms</div>
+      <div class="stat-lbl">Registry lookup latency</div>
+    </div>
+    <div class="routing-step reveal">
+      <div class="routing-step-num">03 · ROUTE</div>
+      <h4>Affinity Pinning</h4>
+      <p>Request is pinned to that specific GPU. Re-computation of the full prompt context is skipped entirely—the GPU already has it in memory.</p>
+      <div class="stat">~40%</div>
+      <div class="stat-lbl">TTFT reduction</div>
+    </div>
+    <div class="routing-step reveal">
+      <div class="routing-step-num">04 · BATCH</div>
+      <h4>Cold-Miss Compaction</h4>
+      <p>If no warm cache exists, the proxy holds the request for ~5ms to find other requests with similar prefixes—creating a high-density batch from scratch.</p>
+      <div class="stat">5ms</div>
+      <div class="stat-lbl">Max hold window</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── OBSERVABILITY ────────────────────────────────────── -->
+<section id="observability">
+  <div class="section-label">What You Can Finally See</div>
+  <h2 class="section-title">The Metrics <span style="color:var(--electric)">That Were Missing</span></h2>
+  <p class="section-desc">GPU utilization is not just a DevOps metric—it's missing economic observability. We expose the inference system as a real-time economic engine.</p>
+  <div class="obs-grid">
+    <div class="obs-card reveal">
+      <h4>Standard DevOps Tools Track</h4>
+      <p>What Prometheus, Grafana, and Datadog give you today—the signals that don't tell the whole story.</p>
+      <div class="metric-pills">
+        <span class="metric-pill has">GPU Utilization %</span>
+        <span class="metric-pill has">Latency (P50/P99)</span>
+        <span class="metric-pill has">Throughput (req/s)</span>
+        <span class="metric-pill has">GPU Memory Used</span>
+        <span class="metric-pill has">Queue Depth</span>
+      </div>
+    </div>
+    <div class="obs-card reveal">
+      <h4>What's Currently Missing Everywhere</h4>
+      <p>The economic signals that drive real optimization decisions—invisible to every existing tool.</p>
+      <div class="metric-pills">
+        <span class="metric-pill missing">Cost per Token per Request</span>
+        <span class="metric-pill missing">Marginal Routing Cost</span>
+        <span class="metric-pill missing">Opportunity Cost of Underfilled Batches</span>
+        <span class="metric-pill missing">KV-Cache Hit Rate (Economic)</span>
+        <span class="metric-pill missing">Effective Cost vs. Baseline</span>
+      </div>
+    </div>
+    <div class="obs-card span2 reveal">
+      <h4>What KV Cognition Adds</h4>
+      <p>The full economic picture—every metric you need to understand the real cost of inference, not just its operational health.</p>
+      <div class="metric-pills">
+        <span class="metric-pill new">GPU Cost/Token (Live)</span>
+        <span class="metric-pill new">Effective Cost per Request</span>
+        <span class="metric-pill new">Batch Density Score</span>
+        <span class="metric-pill new">KV-Cache Affinity Rate</span>
+        <span class="metric-pill new">Routing Decision Log</span>
+        <span class="metric-pill new">Savings vs. Naive Routing</span>
+        <span class="metric-pill new">Marginal Cost of Next Token</span>
+        <span class="metric-pill new">SLA Breach Risk Score</span>
+        <span class="metric-pill new">Cross-Cloud Arbitrage Delta</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── MULTI-CLOUD ──────────────────────────────────────── -->
+<section id="clouds">
+  <div class="section-label">Cross-Cloud Architecture</div>
+  <h2 class="section-title">The Switzerland of <span style="color:var(--electric)">Inference</span></h2>
+  <p class="section-desc">A single control plane that works across every provider, every VPC, every cluster—simultaneously. Route to wherever the marginal cost is lowest at this exact millisecond.</p>
+  <div class="cloud-arch reveal">
+    <div>
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Your Application</div>
+      <div class="cloud-providers">
+        <div class="cloud-provider">
+          <span class="cloud-provider-name">LangChain App</span>
+          <span class="cloud-provider-stat">Python SDK</span>
+          <div class="cloud-provider-indicator"></div>
+        </div>
+        <div class="cloud-provider">
+          <span class="cloud-provider-name">Internal API</span>
+          <span class="cloud-provider-stat">REST / gRPC</span>
+          <div class="cloud-provider-indicator"></div>
+        </div>
+        <div class="cloud-provider">
+          <span class="cloud-provider-name">Mobile Client</span>
+          <span class="cloud-provider-stat">Edge Proxy</span>
+          <div class="cloud-provider-indicator"></div>
+        </div>
+      </div>
+    </div>
+    <div class="cloud-center">
+      <div class="arrow-lines">→→→</div>
+      <div class="cloud-proxy-box">
+        <div class="label">Control Plane</div>
+        <div class="name">KV Cognition</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Fingerprint · Arbitrage · Route</div>
+      </div>
+      <div class="arrow-lines">→→→</div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">GPU Clusters</div>
+      <div class="cloud-providers">
+        <div class="cloud-provider">
+          <span class="cloud-provider-name">AWS Spot H100s</span>
+          <span class="cloud-provider-stat" id="aws-stat">Util: 91% · $0.000038/tok</span>
+          <div class="cloud-provider-indicator"></div>
+        </div>
+        <div class="cloud-provider">
+          <span class="cloud-provider-name">GCP Reserved A100s</span>
+          <span class="cloud-provider-stat" id="gcp-stat">Util: 44% · $0.000091/tok</span>
+          <div class="cloud-provider-indicator" style="background:var(--gold);animation:none;"></div>
+        </div>
+        <div class="cloud-provider">
+          <span class="cloud-provider-name">Private VPC H100s</span>
+          <span class="cloud-provider-stat" id="vpc-stat">Util: 78% · $0.000055/tok</span>
+          <div class="cloud-provider-indicator"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── PRICING ───────────────────────────────────────────── -->
+<section id="pricing">
+  <div class="section-label">Business Model</div>
+  <h2 class="section-title">Found Money</h2>
+  <p class="section-desc">If we don't save you a dollar, you don't owe us a cent. We take a percentage of the savings we generate—nothing more.</p>
+  <div class="pricing-box reveal">
+    <div class="pricing-num">20–30%</div>
+    <div class="pricing-desc">of actual savings generated</div>
+    <p class="pricing-subtext">
+      Zero upfront cost. Zero flat fees. Zero seat licenses. Our entire revenue comes from the waste we eliminate from your GPU spend. Our incentives are 100% aligned with yours.
+    </p>
+    <div class="pricing-chips">
+      <div class="pricing-chip"><span class="ck">✓</span> Zero out-of-pocket risk</div>
+      <div class="pricing-chip"><span class="ck">✓</span> No savings = no charge</div>
+      <div class="pricing-chip"><span class="ck">✓</span> Scales with your savings</div>
+      <div class="pricing-chip"><span class="ck">✓</span> No long-term contract</div>
+      <div class="pricing-chip"><span class="ck">✓</span> Works on existing hardware</div>
+      <div class="pricing-chip"><span class="ck">✓</span> Cross-cloud included</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── CTA ───────────────────────────────────────────────── -->
+<section id="cta">
+  <div class="cta-eyebrow">Ready to Stop Leaving Money on the Table?</div>
+  <h2>Get More From the<br><span style="background:linear-gradient(135deg,#00d4ff,#bf5fff,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Silicon You Already Own</span></h2>
+  <p>We integrate in under 5 minutes, show you the savings within hours, and only charge when you're already profitable. Start with your existing infrastructure.</p>
+  <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
+    <button class="btn-primary">Request Early Access</button>
+    <button class="btn-secondary">Schedule a Demo</button>
+  </div>
+</section>
+
+<!-- ─── FOOTER ────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">⚡ KV Cognition</div>
+  <div class="footer-copy">© 2025 KV Cognition · Real-Time GPU Inference Optimization</div>
+  <div class="footer-links">
+    <a href="#">Docs</a>
+    <a href="#">GitHub</a>
+    <a href="#">Status</a>
+    <a href="#">Contact</a>
+  </div>
+</footer>
+
+<!-- ─── JAVASCRIPT ────────────────────────────────────────── -->
+<script>
+// ============================================================
+// STORM CANVAS — animated clouds + lightning
+// ============================================================
+(function() {
+  const canvas = document.getElementById('storm-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ── Clouds ─────────────────────────────────────────────────
+  const clouds = [];
+  const NUM_CLOUDS = 18;
+  for (let i = 0; i < NUM_CLOUDS; i++) {
+    clouds.push({
+      x: Math.random() * 1.4 - 0.2,   // fraction of W
+      y: Math.random() * 0.7,          // fraction of H
+      r: 80 + Math.random() * 160,
+      speed: 0.00005 + Math.random() * 0.00012,
+      alpha: 0.04 + Math.random() * 0.10,
+      hue: 200 + Math.random() * 50,
+    });
+  }
+
+  function drawClouds() {
+    clouds.forEach(c => {
+      const grd = ctx.createRadialGradient(
+        c.x * W, c.y * H, 0,
+        c.x * W, c.y * H, c.r
+      );
+      grd.addColorStop(0, `hsla(${c.hue},60%,30%,${c.alpha})`);
+      grd.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(c.x * W, c.y * H, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+      c.x += c.speed;
+      if (c.x > 1.3) c.x = -0.3;
+    });
+  }
+
+  // ── Stars ───────────────────────────────────────────────────
+  const STARS = [];
+  for (let i = 0; i < 220; i++) {
+    STARS.push({
+      x: Math.random(),
+      y: Math.random(),
+      r: Math.random() * 1.2 + 0.2,
+      a: 0.2 + Math.random() * 0.6,
+      flicker: Math.random() * Math.PI * 2,
+      flickerSpeed: 0.01 + Math.random() * 0.03,
+    });
+  }
+  function drawStars(t) {
+    STARS.forEach(s => {
+      s.flicker += s.flickerSpeed;
+      const alpha = s.a * (0.6 + 0.4 * Math.sin(s.flicker));
+      ctx.beginPath();
+      ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(180,210,255,${alpha})`;
+      ctx.fill();
+    });
+  }
+
+  // ── Lightning ───────────────────────────────────────────────
+  const bolts = [];
+  let nextBolt = 0;
+
+  function randomBolt() {
+    const startX = 0.1 + Math.random() * 0.8;
+    const startY = 0.0 + Math.random() * 0.25;
+    const endX   = startX + (Math.random() - 0.5) * 0.3;
+    const endY   = startY + 0.3 + Math.random() * 0.35;
+    const segs   = 12 + Math.floor(Math.random() * 10);
+    const pts    = [{x: startX, y: startY}];
+    for (let i = 1; i <= segs; i++) {
+      const t = i / segs;
+      pts.push({
+        x: startX + (endX - startX) * t + (Math.random() - 0.5) * 0.06,
+        y: startY + (endY - startY) * t + (Math.random() - 0.5) * 0.015,
+      });
+    }
+    const branches = [];
+    if (Math.random() > 0.4) {
+      const bi = 3 + Math.floor(Math.random() * (segs - 4));
+      const bp = pts[bi];
+      const bpts = [{ ...bp }];
+      const blen = 2 + Math.floor(Math.random() * 4);
+      for (let j = 0; j < blen; j++) {
+        bpts.push({
+          x: bpts[bpts.length-1].x + (Math.random() - 0.5) * 0.05,
+          y: bpts[bpts.length-1].y + 0.04 + Math.random() * 0.03,
+        });
+      }
+      branches.push(bpts);
+    }
+    return {
+      pts, branches,
+      life: 0,
+      maxLife: 6 + Math.floor(Math.random() * 8),
+      width: 1 + Math.random() * 2.5,
+      color: Math.random() > 0.3 ? '#00d4ff' : '#bf5fff',
+    };
+  }
+
+  function drawBolt(b, alpha) {
+    if (b.pts.length < 2) return;
+    // glow pass
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = b.width * 5;
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 30;
+    ctx.beginPath();
+    ctx.moveTo(b.pts[0].x * W, b.pts[0].y * H);
+    for (let i = 1; i < b.pts.length; i++) ctx.lineTo(b.pts[i].x * W, b.pts[i].y * H);
+    ctx.stroke();
+    // core
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = b.width * 0.7;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(b.pts[0].x * W, b.pts[0].y * H);
+    for (let i = 1; i < b.pts.length; i++) ctx.lineTo(b.pts[i].x * W, b.pts[i].y * H);
+    ctx.stroke();
+    // branches
+    b.branches.forEach(br => {
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = b.width * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(br[0].x * W, br[0].y * H);
+      for (let i = 1; i < br.length; i++) ctx.lineTo(br[i].x * W, br[i].y * H);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // ── Flash ───────────────────────────────────────────────────
+  let flashAlpha = 0;
+
+  // ── Render loop ─────────────────────────────────────────────
+  let frame = 0;
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Deep sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0,   '#060412');
+    sky.addColorStop(0.4, '#0a0620');
+    sky.addColorStop(1,   '#060412');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    drawStars(frame);
+    drawClouds();
+
+    // Lightning
+    if (frame >= nextBolt) {
+      bolts.push(randomBolt());
+      flashAlpha = 0.12 + Math.random() * 0.16;
+      nextBolt = frame + 40 + Math.floor(Math.random() * 120);
+    }
+    for (let i = bolts.length - 1; i >= 0; i--) {
+      const b = bolts[i];
+      const a = 1 - b.life / b.maxLife;
+      drawBolt(b, a);
+      b.life++;
+      if (b.life >= b.maxLife) bolts.splice(i, 1);
+    }
+
+    // Flash overlay
+    if (flashAlpha > 0) {
+      ctx.fillStyle = `rgba(0,212,255,${flashAlpha})`;
+      ctx.fillRect(0, 0, W, H);
+      flashAlpha = Math.max(0, flashAlpha - 0.018);
+    }
+
+    frame++;
+    requestAnimationFrame(render);
+  }
+  render();
+})();
+
+// ============================================================
+// ANIMATED HERO COUNTERS
+// ============================================================
+(function() {
+  function animateTo(el, from, to, duration, formatter) {
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      el.textContent = formatter(from + (to - from) * ease);
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  setTimeout(() => {
+    animateTo(document.getElementById('m-savings'), 0, 4820000,  2000, v => '$' + (v/1e6).toFixed(2) + 'M');
+    animateTo(document.getElementById('m-tokens'),  0, 2.4,      2000, v => v.toFixed(1) + 'T');
+    animateTo(document.getElementById('m-latency'), 0, 41,       2000, v => Math.round(v) + '%');
+    animateTo(document.getElementById('m-util'),    0, 38,       2000, v => '+' + Math.round(v) + '%');
+  }, 600);
+})();
+
+// ============================================================
+// SPARKLINES
+// ============================================================
+(function() {
+  function drawSparkline(canvasId, data, color) {
+    const c = document.getElementById(canvasId);
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    c.width = c.parentElement.offsetWidth || 240;
+    c.height = 52;
+    const W = c.width, H = c.height;
+    const max = Math.max(...data), min = Math.min(...data);
+    const pad = 4;
+    function px(i) { return pad + i * (W - pad*2) / (data.length - 1); }
+    function py(v) { return H - pad - (v - min) / (max - min + 0.0001) * (H - pad*2); }
+    const grd = ctx.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, color + '55');
+    grd.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.moveTo(px(0), py(data[0]));
+    for (let i = 1; i < data.length; i++) ctx.lineTo(px(i), py(data[i]));
+    ctx.lineTo(px(data.length-1), H);
+    ctx.lineTo(px(0), H);
+    ctx.closePath();
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px(0), py(data[0]));
+    for (let i = 1; i < data.length; i++) ctx.lineTo(px(i), py(data[i]));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  function randData(n, base, variance) {
+    const d = [];
+    let v = base;
+    for (let i = 0; i < n; i++) { v += (Math.random()-0.5)*variance; d.push(Math.max(0.1, v)); }
+    return d;
+  }
+  drawSparkline('spark1', randData(40, 0.000045, 0.000008), '#00d4ff');
+  drawSparkline('spark2', randData(40, 88, 5), '#00ffb3');
+  drawSparkline('spark3', randData(40, 12000, 1200), '#bf5fff');
+})();
+
+// ============================================================
+// BAR CHARTS
+// ============================================================
+(function() {
+  function makeBars(containerId, count, color1, color2) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    for (let i = 0; i < count; i++) {
+      const b = document.createElement('div');
+      b.className = 'bar';
+      const h = 20 + Math.random() * 40;
+      b.style.height = h + 'px';
+      c.appendChild(b);
+    }
+  }
+  makeBars('batch-bars', 16);
+  makeBars('ttft-bars', 16);
+  makeBars('savings-bars', 16);
+  // Animate bar heights over time
+  setInterval(() => {
+    document.querySelectorAll('.bar-chart').forEach(chart => {
+      chart.querySelectorAll('.bar').forEach(bar => {
+        const h = 8 + Math.random() * 52;
+        bar.style.height = h + 'px';
+      });
+    });
+  }, 1800);
+})();
+
+// ============================================================
+// LIVE METRIC UPDATES
+// ============================================================
+(function() {
+  let savedBase = 1284;
+  let rpsBase   = 12847;
+  let cptBase   = 0.000042;
+  let batchBase = 87;
+  let cacheBase = 91;
+  let ttftBase  = 38;
+
+  function rand(base, pct) { return base * (1 + (Math.random()-0.5)*pct); }
+
+  setInterval(() => {
+    savedBase += 80 + Math.random() * 140;
+    rpsBase = rand(rpsBase, 0.08);
+    cptBase = rand(cptBase, 0.06);
+    batchBase = Math.min(99, rand(batchBase, 0.04));
+    cacheBase = Math.min(99, rand(cacheBase, 0.03));
+    ttftBase  = rand(ttftBase, 0.05);
+
+    const el = (id) => document.getElementById(id);
+    if (el('d-saved')) el('d-saved').textContent = Math.round(savedBase).toLocaleString();
+    if (el('d-rps'))   el('d-rps').textContent   = Math.round(rpsBase).toLocaleString();
+    if (el('d-cpt'))   el('d-cpt').textContent   = cptBase.toFixed(7);
+    if (el('d-batch')) el('d-batch').textContent = Math.round(batchBase);
+    if (el('d-cache')) el('d-cache').textContent = Math.round(cacheBase);
+    if (el('d-ttft'))  el('d-ttft').textContent  = Math.round(ttftBase);
+
+    // Cloud stats
+    const awsStat = el('aws-stat');
+    if (awsStat) awsStat.textContent = `Util: ${Math.round(88+Math.random()*8)}% · $${rand(0.000038,0.12).toFixed(7)}/tok`;
+    const gcpStat = el('gcp-stat');
+    if (gcpStat) gcpStat.textContent = `Util: ${Math.round(40+Math.random()*12)}% · $${rand(0.000091,0.12).toFixed(7)}/tok`;
+    const vpcStat = el('vpc-stat');
+    if (vpcStat) vpcStat.textContent = `Util: ${Math.round(72+Math.random()*10)}% · $${rand(0.000055,0.1).toFixed(7)}/tok`;
+  }, 2200);
+})();
+
+// ============================================================
+// SCROLL-REVEAL
+// ============================================================
+(function() {
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+})();
+</script>
+</body>
+</html>
