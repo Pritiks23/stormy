@@ -1015,24 +1015,7 @@
     <button class="btn-primary" onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">See How It Works</button>
     <button class="btn-secondary" onclick="document.getElementById('dashboard').scrollIntoView({behavior:'smooth'})">Live Dashboard</button>
   </div>
-  <div class="hero-metrics">
-    <div class="hero-metric">
-      <span class="val" id="m-savings">$0</span>
-      <span class="lbl">Savings Generated</span>
-    </div>
-    <div class="hero-metric">
-      <span class="val" id="m-tokens">0T</span>
-      <span class="lbl">Tokens Optimized</span>
-    </div>
-    <div class="hero-metric">
-      <span class="val" id="m-latency">0%</span>
-      <span class="lbl">Avg. TTFT Reduction</span>
-    </div>
-    <div class="hero-metric">
-      <span class="val" id="m-util">0%</span>
-      <span class="lbl">GPU Utilization Boost</span>
-    </div>
-  </div>
+
 </section>
 
 <div class="divider"></div>
@@ -1733,28 +1716,6 @@
     requestAnimationFrame(render);
   }
   render();
-})();
-
-// ============================================================
-// ANIMATED HERO COUNTERS
-// ============================================================
-(function() {
-  function animateTo(el, from, to, duration, formatter) {
-    const start = performance.now();
-    function step(now) {
-      const t = Math.min((now - start) / duration, 1);
-      const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
-      el.textContent = formatter(from + (to - from) * ease);
-      if (t < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  }
-  setTimeout(() => {
-    animateTo(document.getElementById('m-savings'), 0, 4820000,  2000, v => '$' + (v/1e6).toFixed(2) + 'M');
-    animateTo(document.getElementById('m-tokens'),  0, 2.4,      2000, v => v.toFixed(1) + 'T');
-    animateTo(document.getElementById('m-latency'), 0, 41,       2000, v => Math.round(v) + '%');
-    animateTo(document.getElementById('m-util'),    0, 38,       2000, v => '+' + Math.round(v) + '%');
-  }, 600);
 })();
 
 // ============================================================
